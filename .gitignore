@@ -1,0 +1,11 @@
+#Python generated file
+__pycache__/
+*.py[cod]
+
+#Editor settings
+.vscode
+.idea/
+
+#Temporary file
+*.swp
+*~

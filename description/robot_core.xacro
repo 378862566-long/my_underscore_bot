@@ -54,6 +54,9 @@
         </xacro:inertial_box>
     </link>
 
+    <gazebo reference="chassi">
+        <material>Gazebo/white</material>
+    </gazebo>
 
     <!-- left wheel link -->
 
@@ -82,6 +85,11 @@
             <origin xyz="0 0 0" rpy="0 0 0" />
         </xacro:inertial_cylinder>
     </link>
+
+    <gazebo reference="left_wheel">
+        <material>Gazebo/blue</material>
+    </gazebo>
+
 
 
     <!-- right wheel link -->
@@ -113,9 +121,14 @@
     </link>
 
 
+    <gazebo reference="right_wheel">
+        <material>Gazebo/blue</material>
+    </gazebo>
+
+
+
     <!-- front caster link -->
     
-
     <joint name="front_caster_joint" type="fixed">
         <parent link="base_link"/>
         <child link="front_caster"/>
@@ -138,5 +151,11 @@
             <origin xyz="0 0 0" rpy="0 0 0" />
         </xacro:inertial_sphere>
     </link>
+
+    <gazebo reference="front_caster">
+        <material>Gazebo/black</material>
+        <mu1 value="0.001"/>
+        <mu2 value="0.001"/>
+    </gazebo>
 
 </robot>

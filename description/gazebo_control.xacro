@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- ============================================================
+         Gazebo 仿真 ros2_control 系统插件
+         此插件内部自带 controller_manager，不需要单独启动 ros2_control_node
+         参数通过 <parameters> 标签传入 YAML 配置文件
+         ============================================================ -->
+    <gazebo>
+        <plugin name="gz_ros2_control::GazeboSimROS2ControlPlugin"
+                filename="libgz_ros2_control-system.so">
+            <!-- 指定控制器参数文件路径 -->
+            <parameters>$(find my_underscore_bot)/config/my_controllers.yaml</parameters>
+        </plugin>
+    </gazebo>
+
+    <!-- ============================================================
+         ros2_control 硬件接口定义
+         - hardware 指定使用 GazeboSimSystem 作为硬件插件
+         - joint 定义各关节的命令接口（velocity）和状态接口（position/velocity）
+         ============================================================ -->
+    <ros2_control name="GazeboSimSystem" type="system">
+        <!-- 硬件插件：连接 Gazebo 物理引擎与 ros2_control 框架 -->
+        <hardware>
+            <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        </hardware>
+
+        <!-- 左轮关节 — 速度命令接口（由 diff_drive_controller 写入）+ 位置/速度状态反馈 -->
+        <joint name="left_wheel_joint">
+            <command_interface name="velocity">
+                <param name="min">-10</param>
+                <param name="max">10</param>
+            </command_interface>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <!-- 右轮关节 — 同上 -->
+        <joint name="right_wheel_joint">
+            <command_interface name="velocity">
+                <param name="min">-10</param>
+                <param name="max">10</param>
+            </command_interface>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+    </ros2_control>
+
+</robot>
