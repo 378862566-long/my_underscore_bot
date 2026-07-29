@@ -58,7 +58,7 @@ Visualization Manager:
         All Enabled: true
         base_link:
           Value: true
-        chassi:
+        chassis:
           Value: true
         front_caster:
           Value: true
@@ -73,7 +73,7 @@ Visualization Manager:
       Show Names: true
       Tree:
         base_link:
-          chassi:
+          chassis:
             {}
           front_caster:
             {}
@@ -105,7 +105,7 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        chassi:
+        chassis:
           Alpha: 1
           Show Axes: false
           Show Trail: false

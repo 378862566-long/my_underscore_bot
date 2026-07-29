@@ -129,7 +129,7 @@ def generate_launch_description():
             description='机器人生成的 Y 坐标,单位:米'),
         DeclareLaunchArgument(
             'z',
-            default_value='0.05',
+            default_value='0.0',
             description='机器人生成的 Z 坐标,单位:米'),
         DeclareLaunchArgument(
             'yaw',

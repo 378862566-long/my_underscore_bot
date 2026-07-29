@@ -40,7 +40,7 @@ diff_cont:
     # 里程计发布参数
     publish_rate: 50.0          # 里程计消息发布频率 (Hz)
     odom_frame_id: odom         # 里程计坐标系名称
-    base_frame_id: base_link    # 机器人基座坐标系名称
+    base_frame_id: base_footprint    # 机器人基座坐标系名称
     enable_odom_tf: true        # 是否发布 odom → base_link 的 TF 变换
 
     # 使用带仿真时间戳的命令，避免 Humble 回移植版本的 unstamped 通道失效

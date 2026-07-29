@@ -38,7 +38,7 @@ my_underscore_bot/
 │   └── view_bot_rviz.rviz      # RViz 配置
 ├── description/
 │   ├── robot.urdf.xacro        # 机器人模型入口
-│   ├── robot_core.xacro        # 底盘、车轮和万向轮
+│   ├── robot_core.xacro        # 坐标基准、底盘、车轮和万向轮
 │   ├── inertial_macros.xacro   # 常用形状的惯性计算宏
 │   └── gazebo_control.xacro    # Gazebo ros2_control 配置
 ├── launch/
@@ -94,7 +94,8 @@ source install/setup.bash
 ros2 launch my_underscore_bot launch_sim.launch.py
 ```
 
-默认加载 `my_world.sdf`，机器人生成在 `(0, 0, 0.05)`，偏航角为 `0`。
+默认加载 `my_world.sdf`，`base_footprint` 生成在 `(0, 0, 0)`，偏航角为
+`0`。`base_link` 位于 `base_footprint` 上方 `0.05 m` 的车轮中心高度。
 可以通过 launch 参数选择世界并设置初始位姿：
 
 ```bash
@@ -102,7 +103,7 @@ ros2 launch my_underscore_bot launch_sim.launch.py \
   world:=my_world.sdf \
   x:=1.0 \
   y:=2.0 \
-  z:=0.05 \
+  z:=0.0 \
   yaw:=1.57
 ```
 
@@ -111,7 +112,7 @@ ros2 launch my_underscore_bot launch_sim.launch.py \
 | `world` | `my_world.sdf` | `worlds/` 目录中的 Gazebo 世界文件 |
 | `x` | `0.0` | 初始 X 坐标，单位米 |
 | `y` | `0.0` | 初始 Y 坐标，单位米 |
-| `z` | `0.05` | 初始 Z 坐标，单位米 |
+| `z` | `0.0` | `base_footprint` 的初始 Z 坐标，单位米 |
 | `yaw` | `0.0` | 初始偏航角，单位弧度 |
 
 例如，`yaw:=1.57` 表示机器人初始方向旋转约 90°。
@@ -152,6 +153,18 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 | `/joint_states` | `sensor_msgs/msg/JointState` | 车轮关节状态 |
 | `/tf` | `tf2_msgs/msg/TFMessage` | 动态坐标变换 |
 | `/tf_static` | `tf2_msgs/msg/TFMessage` | 静态坐标变换 |
+
+当前主要 TF 关系为：
+
+```text
+odom
+└── base_footprint
+    └── base_link
+        ├── chassis
+        ├── front_caster
+        ├── left_wheel
+        └── right_wheel
+```
 
 ## 常用检查命令
 
@@ -234,14 +247,13 @@ Gazebo 无法识别该参数。
 项目将按照以下顺序继续完善：
 
 1. 参数化世界文件和机器人初始位置
-2. 修正底盘命名并增加 `base_footprint`
-3. 增加 Xacro、启动和运动测试
-4. 校准质量、惯性和摩擦参数
-5. 添加激光雷达
-6. 接入 SLAM
-7. 接入 Nav2
-8. 添加 IMU 和相机
-9. 连接真实机器人硬件
+2. 增加 Xacro、启动和运动测试
+3. 校准质量、惯性和摩擦参数
+4. 添加激光雷达
+5. 接入 SLAM
+6. 接入 Nav2
+7. 添加 IMU 和相机
+8. 连接真实机器人硬件
 
 ## License
 
