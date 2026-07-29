@@ -94,6 +94,28 @@ source install/setup.bash
 ros2 launch my_underscore_bot launch_sim.launch.py
 ```
 
+默认加载 `my_world.sdf`，机器人生成在 `(0, 0, 0.05)`，偏航角为 `0`。
+可以通过 launch 参数选择世界并设置初始位姿：
+
+```bash
+ros2 launch my_underscore_bot launch_sim.launch.py \
+  world:=my_world.sdf \
+  x:=1.0 \
+  y:=2.0 \
+  z:=0.05 \
+  yaw:=1.57
+```
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `world` | `my_world.sdf` | `worlds/` 目录中的 Gazebo 世界文件 |
+| `x` | `0.0` | 初始 X 坐标，单位米 |
+| `y` | `0.0` | 初始 Y 坐标，单位米 |
+| `z` | `0.05` | 初始 Z 坐标，单位米 |
+| `yaw` | `0.0` | 初始偏航角，单位弧度 |
+
+例如，`yaw:=1.57` 表示机器人初始方向旋转约 90°。
+
 启动过程会：
 
 1. 解析 `robot.urdf.xacro`

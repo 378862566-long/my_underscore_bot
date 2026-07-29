@@ -24,6 +24,11 @@ def generate_launch_description():
 
     # 仿真时间标志
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
+    world = LaunchConfiguration('world')
+    spawn_x = LaunchConfiguration('x')
+    spawn_y = LaunchConfiguration('y')
+    spawn_z = LaunchConfiguration('z')
+    spawn_yaw = LaunchConfiguration('yaw')
 
     # ============================================================
     # 1. robot_state_publisher — 发布 TF 变换
@@ -42,14 +47,13 @@ def generate_launch_description():
     # 2. Gazebo 仿真（空世界，自动开始运行）
     # ============================================================
 
-    world_file = os.path.join(pkg_share, 'worlds', 'my_world.sdf')
-
+    world_file = PathJoinSubstitution([FindPackageShare(package_name), 'worlds', world])
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'])
         ]),
-        launch_arguments={'gz_args': f'-r {world_file}'}.items()
+        launch_arguments={'gz_args': ['-r',' ', world_file]}.items()
     )
 
     # ============================================================
@@ -63,7 +67,10 @@ def generate_launch_description():
         executable='create',
         arguments=['-topic', 'robot_description',
                    '-entity', 'my_underscore_bot',
-                   '-z', '0.05'],
+                   '-x', spawn_x,
+                   '-y', spawn_y,
+                   '-z', spawn_z,
+                   '-Y', spawn_yaw,],
         output='screen'
     )
 
@@ -108,6 +115,26 @@ def generate_launch_description():
             'use_sim_time',
             default_value='true',
             description='使用仿真时间'),
+        DeclareLaunchArgument(
+            'world',
+            default_value='my_world.sdf',
+            description='要加载的Gazebo 世界文件'),
+        DeclareLaunchArgument(
+            'x',
+            default_value='0.0',
+            description='机器人生成的 X 坐标,单位:米'),
+        DeclareLaunchArgument(
+            'y',
+            default_value='0.0',
+            description='机器人生成的 Y 坐标,单位:米'),
+        DeclareLaunchArgument(
+            'z',
+            default_value='0.05',
+            description='机器人生成的 Z 坐标,单位:米'),
+        DeclareLaunchArgument(
+            'yaw',
+            default_value='0.0',
+            description='机器人生成的 Yaw ,单位:弧度'),
         LogInfo(msg='正在启动仿真环境...'),
         robot_state_publisher_node,     # 1. TF 发布
         gazebo,                         # 2. Gazebo 仿真
