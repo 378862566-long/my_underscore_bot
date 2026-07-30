@@ -14,6 +14,7 @@
 - 使用 `diff_drive_controller` 控制左右轮
 - 将键盘发布的 `/cmd_vel` 转换为控制器需要的带时间戳速度命令
 - 发布 `/joint_states`、`/tf`、`/tf_static` 和里程计
+- 使用自动测试检查 Xacro、launch 文件和 Gazebo 运动链路
 - 使用 `rosdep` 管理 ROS 依赖
 - 使用 `colcon` 构建工作空间
 
@@ -46,8 +47,14 @@ my_underscore_bot/
 │   └── rsp.launch.py           # robot_state_publisher 启动文件
 ├── scripts/
 │   └── cmd_vel_relay.py        # Twist 到 TwistStamped 的速度桥接
+├── test/
+│   ├── test_xacro.py            # 机器人描述结构测试
+│   ├── test_launch.py           # 仿真启动描述静态测试
+│   └── test_motion.py           # Gazebo 运动集成测试
 ├── worlds/
 │   └── my_world.sdf            # 当前 Gazebo 场景
+├── CONTRIBUTING.md
+├── LICENSE
 ├── CMakeLists.txt
 ├── package.xml
 └── README.md
@@ -83,6 +90,41 @@ source install/setup.bash
 
 `--symlink-install` 适合开发阶段使用。修改 Python、launch、配置和场景文件后，
 安装空间会通过符号链接读取源码中的最新内容；修改 CMake 或依赖后仍应重新构建。
+
+## 运行测试
+
+完成构建后，运行日常测试：
+
+```bash
+cd ~/dev_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+colcon test --packages-select my_underscore_bot
+colcon test-result --verbose
+```
+
+日常测试包括：
+
+- Xacro 能否展开，以及关键 link、joint 和 `ros2_control` 是否存在
+- launch 文件能否加载，以及仿真参数是否声明完整
+- Python、CMake、XML、版权和文档字符串等静态检查
+
+运动测试会真实启动 Gazebo，因此日常测试默认跳过它。需要验证完整运动链路时执行：
+
+```bash
+cd ~/dev_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+RUN_GAZEBO_TESTS=1 colcon test \
+  --packages-select my_underscore_bot \
+  --ctest-args -R '^test_motion$' --output-on-failure
+colcon test-result --verbose
+```
+
+运动测试会启动仿真、向 `/cmd_vel` 发送前进命令，并检查
+`/diff_cont/odom` 中的 X 位置是否增加。测试结束后会自动关闭它启动的进程。
 
 ## 启动 Gazebo 仿真
 
@@ -223,7 +265,7 @@ ign sdf -k ~/dev_ws/src/my_underscore_bot/worlds/my_world.sdf
 `gz_args` 中的 `-r` 与世界文件路径之间必须有空格：
 
 ```python
-launch_arguments={'gz_args': f'-r {world_file}'}.items()
+launch_arguments={'gz_args': ['-r', ' ', world_file]}.items()
 ```
 
 否则参数可能被拼接成：
@@ -246,8 +288,8 @@ Gazebo 无法识别该参数。
 
 项目将按照以下顺序继续完善：
 
-1. 参数化世界文件和机器人初始位置
-2. 增加 Xacro、启动和运动测试
+1. 参数化世界文件和机器人初始位置（已完成）
+2. 增加 Xacro、启动和运动测试（已完成）
 3. 校准质量、惯性和摩擦参数
 4. 添加激光雷达
 5. 接入 SLAM
@@ -257,4 +299,4 @@ Gazebo 无法识别该参数。
 
 ## License
 
-参见 [LICENSE.md](LICENSE.md)。
+参见 [LICENSE](LICENSE)。

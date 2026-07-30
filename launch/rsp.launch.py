@@ -1,3 +1,17 @@
+# Copyright 2026 longlong
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 
 from ament_index_python.packages import get_package_share_directory
@@ -17,9 +31,13 @@ def generate_launch_description():
 
     # Process the URDF file
     pkg_path = os.path.join(get_package_share_directory('my_underscore_bot'))
-    xacro_file = os.path.join(pkg_path,'description','robot.urdf.xacro')
+    xacro_file = os.path.join(
+        pkg_path,
+        'description',
+        'robot.urdf.xacro',
+    )
     robot_description_config = xacro.process_file(xacro_file).toxml()
-    
+
     # Create a robot_state_publisher node
     params = {'robot_description': robot_description_config, 'use_sim_time': use_sim_time}
     node_robot_state_publisher = Node(
@@ -28,7 +46,6 @@ def generate_launch_description():
         output='screen',
         parameters=[params]
     )
-
 
     # Launch!
     return LaunchDescription([
