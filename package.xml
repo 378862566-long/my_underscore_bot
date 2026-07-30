@@ -17,6 +17,9 @@
   <depend>joint_state_broadcaster</depend>
   <depend>controller_manager</depend>
   <depend>ros2_control</depend>
+  <depend>ros_gz_bridge</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>

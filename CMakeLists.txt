@@ -39,6 +39,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_xacro test/test_xacro.py)
   ament_add_pytest_test(test_launch test/test_launch.py)
   ament_add_pytest_test(test_motion test/test_motion.py TIMEOUT 60)
+  ament_add_pytest_test(test_lidar test/test_lidar.py TIMEOUT 60)
 endif()
 
 install(

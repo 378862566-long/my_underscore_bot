@@ -14,6 +14,7 @@
 - 使用 `diff_drive_controller` 控制左右轮
 - 将键盘发布的 `/cmd_vel` 转换为控制器需要的带时间戳速度命令
 - 发布 `/joint_states`、`/tf`、`/tf_static` 和里程计
+- 使用 360° 二维激光雷达发布 `/scan`
 - 使用自动测试检查 Xacro、launch 文件和 Gazebo 运动链路
 - 使用 `rosdep` 管理 ROS 依赖
 - 使用 `colcon` 构建工作空间
@@ -41,6 +42,7 @@ my_underscore_bot/
 │   ├── robot.urdf.xacro        # 机器人模型入口
 │   ├── robot_core.xacro        # 坐标基准、底盘、车轮和万向轮
 │   ├── inertial_macros.xacro   # 常用形状的惯性计算宏
+│   ├── lidar.xacro             # 二维激光雷达模型与 Gazebo 传感器
 │   └── gazebo_control.xacro    # Gazebo ros2_control 配置
 ├── launch/
 │   ├── launch_sim.launch.py    # Gazebo 完整仿真入口
@@ -50,7 +52,8 @@ my_underscore_bot/
 ├── test/
 │   ├── test_xacro.py            # 机器人描述结构测试
 │   ├── test_launch.py           # 仿真启动描述静态测试
-│   └── test_motion.py           # Gazebo 运动集成测试
+│   ├── test_motion.py           # Gazebo 运动集成测试
+│   └── test_lidar.py            # Gazebo 雷达数据集成测试
 ├── worlds/
 │   └── my_world.sdf            # 当前 Gazebo 场景
 ├── CONTRIBUTING.md
@@ -119,17 +122,19 @@ source install/setup.bash
 
 RUN_GAZEBO_TESTS=1 colcon test \
   --packages-select my_underscore_bot \
-  --ctest-args -R '^test_motion$' --output-on-failure
+  --ctest-args -R '^test_(motion|lidar)$' --output-on-failure
 colcon test-result --verbose
 ```
 
 运动测试会启动仿真并向 `/cmd_vel` 发送命令。直行测试检查
 `/diff_cont/odom` 中的 X 位置是否增加；旋转测试检查原地转向、平移漂移，
 并对比轮式里程计与 Gazebo 模型真值。测试结束后会自动关闭它启动的进程。
+雷达测试检查 `/scan` 的 frame、360 个采样点、扫描角度、量程和有效距离。
 
 ## 物理模型基线
 
-当前机器人按总质量 `0.8 kg` 的教学模型进行校准：
+基础机器人按总质量 `0.8 kg` 的教学模型进行校准。安装 `0.05 kg`
+激光雷达后，当前整机总质量为 `0.85 kg`：
 
 | 部件 | 质量 (kg) | `ixx` | `iyy` | `izz` |
 | --- | ---: | ---: | ---: | ---: |
@@ -137,6 +142,7 @@ colcon test-result --verbose
 | left_wheel | 0.1 | 0.0000758333 | 0.0000758333 | 0.000125 |
 | right_wheel | 0.1 | 0.0000758333 | 0.0000758333 | 0.000125 |
 | front_caster | 0.1 | 0.0001 | 0.0001 | 0.0001 |
+| laser_frame | 0.05 | 0.00002375 | 0.00002375 | 0.00004 |
 
 惯性由 `inertial_macros.xacro` 根据长方体、圆柱和球体公式计算。
 自动测试会检查各部件质量、总质量、惯性计算结果及惯性矩阵的基本物理有效性。
@@ -150,8 +156,8 @@ colcon test-result --verbose
 | 前万向轮 | 0.001 | 0.001 | 减少固定球形支点对转向的阻碍 |
 
 Gazebo 会将通过固定关节连接的底盘和万向轮合并进基础 link，因此转换后的
-SDF 中基础 link 的质量是 `0.6 kg`；加上两个 `0.1 kg` 的驱动轮，总质量仍为
-`0.8 kg`。
+SDF 中基础 link 的质量是 `0.65 kg`；加上两个 `0.1 kg` 的驱动轮，总质量为
+`0.85 kg`。
 
 ## 启动 Gazebo 仿真
 
@@ -219,6 +225,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 | `/diff_cont/cmd_vel` | `geometry_msgs/msg/TwistStamped` | 差速控制器的速度输入 |
 | `/diff_cont/cmd_vel_out` | `geometry_msgs/msg/TwistStamped` | 控制器实际采用的速度命令 |
 | `/diff_cont/odom` | `nav_msgs/msg/Odometry` | 机器人里程计 |
+| `/scan` | `sensor_msgs/msg/LaserScan` | 二维激光雷达扫描数据 |
 | `/joint_states` | `sensor_msgs/msg/JointState` | 车轮关节状态 |
 | `/tf` | `tf2_msgs/msg/TFMessage` | 动态坐标变换 |
 | `/tf_static` | `tf2_msgs/msg/TFMessage` | 静态坐标变换 |
@@ -231,6 +238,8 @@ odom
     └── base_link
         ├── chassis
         ├── front_caster
+        ├── laser_frame
+        │   └── robot/base_footprint/lidar
         ├── left_wheel
         └── right_wheel
 ```
@@ -318,7 +327,7 @@ Gazebo 无法识别该参数。
 1. 参数化世界文件和机器人初始位置（已完成）
 2. 增加 Xacro、启动和运动测试（已完成）
 3. 校准质量、惯性和摩擦参数（已完成）
-4. 添加激光雷达
+4. 添加激光雷达（已完成）
 5. 接入 SLAM
 6. 接入 Nav2
 7. 添加 IMU 和相机

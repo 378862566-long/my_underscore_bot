@@ -116,6 +116,29 @@ def generate_launch_description():
         parameters=[{'use_sim_time': use_sim_time}],
     )
 
+    # Bridge the Gazebo lidar scan into a ROS sensor_msgs/LaserScan topic.
+    lidar_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=[
+            '/scan@sensor_msgs/msg/LaserScan'
+            '[ignition.msgs.LaserScan',
+        ],
+        output='screen',
+    )
+
+    # Fortress reports the scoped Gazebo sensor frame in LaserScan messages.
+    # The sensor is colocated with laser_frame, so connect them with identity TF.
+    lidar_frame_alias = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=[
+            '--frame-id', 'laser_frame',
+            '--child-frame-id', 'robot/base_footprint/lidar',
+        ],
+        output='screen',
+    )
+
     # 延迟 6 秒加载控制器（确保 Gazebo 完全启动 + 插件初始化完毕）
     delayed_spawners = TimerAction(
         period=6.0,
@@ -156,4 +179,6 @@ def generate_launch_description():
         spawn_entity,                   # 3. 生成机器人（含 controller_manager）
         delayed_spawners,               # 4. 延迟加载 diff_drive 等控制器
         cmd_vel_relay,                  # 5. /cmd_vel 兼容桥接
+        lidar_bridge,                   # 6. Gazebo 雷达数据桥接到 /scan
+        lidar_frame_alias,              # 7. 连接 Gazebo 雷达 frame 与 TF
     ])

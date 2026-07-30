@@ -61,6 +61,7 @@ def test_required_links_exist():
         'left_wheel',
         'right_wheel',
         'front_caster',
+        'laser_frame',
     }
 
     assert expected_links.issubset(link_names)
@@ -76,6 +77,7 @@ def test_required_joints_exist():
         'left_wheel_joint',
         'right_wheel_joint',
         'front_caster_joint',
+        'laser_joint',
     }
 
     assert expected_joints.issubset(joint_names)
@@ -95,6 +97,7 @@ def test_teaching_model_mass_distribution():
         'left_wheel': 0.1,
         'right_wheel': 0.1,
         'front_caster': 0.1,
+        'laser_frame': 0.05,
     }
 
     actual_masses = {
@@ -103,7 +106,18 @@ def test_teaching_model_mass_distribution():
     }
 
     assert actual_masses == pytest.approx(expected_masses)
-    assert sum(actual_masses.values()) == pytest.approx(0.8)
+    base_mass = sum(
+        actual_masses[link_name]
+        for link_name in (
+            'chassis',
+            'left_wheel',
+            'right_wheel',
+            'front_caster',
+        )
+    )
+
+    assert base_mass == pytest.approx(0.8)
+    assert sum(actual_masses.values()) == pytest.approx(0.85)
 
 
 def test_teaching_model_inertia_values():
@@ -122,6 +136,7 @@ def test_teaching_model_inertia_values():
             0.000125,
         ),
         'front_caster': (0.0001, 0.0001, 0.0001),
+        'laser_frame': (0.00002375, 0.00002375, 0.00004),
     }
 
     for link_name, expected_diagonal in expected_inertias.items():
@@ -137,6 +152,7 @@ def test_inertia_values_are_physically_valid():
         'left_wheel',
         'right_wheel',
         'front_caster',
+        'laser_frame',
     )
 
     for link_name in physical_links:
@@ -148,3 +164,30 @@ def test_inertia_values_are_physically_valid():
         assert ixx + iyy >= izz
         assert ixx + izz >= iyy
         assert iyy + izz >= ixx
+
+
+def test_lidar_sensor_configuration():
+    """Verify the simulated lidar scan settings."""
+    robot = expand_robot_xacro()
+    lidar_sensor = robot.find(
+        "./gazebo[@reference='laser_frame']/sensor[@name='lidar']"
+    )
+
+    assert lidar_sensor is not None
+    assert lidar_sensor.attrib['type'] == 'gpu_lidar'
+    assert lidar_sensor.findtext('topic') == 'scan'
+    assert float(lidar_sensor.findtext('update_rate')) == pytest.approx(10.0)
+
+    lidar = lidar_sensor.find('lidar')
+    horizontal_scan = lidar.find('scan/horizontal')
+    scan_range = lidar.find('range')
+
+    assert int(horizontal_scan.findtext('samples')) == 360
+    assert float(horizontal_scan.findtext('min_angle')) == pytest.approx(
+        -3.141592653589793
+    )
+    assert float(horizontal_scan.findtext('max_angle')) == pytest.approx(
+        3.141592653589793
+    )
+    assert float(scan_range.findtext('min')) == pytest.approx(0.12)
+    assert float(scan_range.findtext('max')) == pytest.approx(8.0)
