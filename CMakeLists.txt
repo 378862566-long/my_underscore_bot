@@ -40,10 +40,11 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_launch test/test_launch.py)
   ament_add_pytest_test(test_motion test/test_motion.py TIMEOUT 60)
   ament_add_pytest_test(test_lidar test/test_lidar.py TIMEOUT 60)
+  ament_add_pytest_test(test_slam test/test_slam.py TIMEOUT 60)
 endif()
 
 install(
-  DIRECTORY config description launch worlds
+  DIRECTORY config description launch maps worlds
   DESTINATION share/${PROJECT_NAME}
 )
 

@@ -110,21 +110,26 @@ def get_gazebo_model_pose():
 
 def stop_process_group(process):
     """Stop a launch process and every child process that it created."""
-    if process.poll() is not None:
-        return
+    if process.poll() is None:
+        os.killpg(process.pid, signal.SIGINT)
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait(timeout=5)
 
-    os.killpg(process.pid, signal.SIGINT)
-    try:
-        process.wait(timeout=10)
-        return
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGTERM)
-
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait(timeout=5)
+    # The launch parent can exit before every child in its process group.
+    time.sleep(0.2)
+    for shutdown_signal in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(process.pid, shutdown_signal)
+        except ProcessLookupError:
+            break
+        time.sleep(0.5)
 
 
 @pytest.fixture

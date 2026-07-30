@@ -15,6 +15,7 @@
 - 将键盘发布的 `/cmd_vel` 转换为控制器需要的带时间戳速度命令
 - 发布 `/joint_states`、`/tf`、`/tf_static` 和里程计
 - 使用 360° 二维激光雷达发布 `/scan`
+- 使用 SLAM Toolbox 在线生成并保存二维栅格地图
 - 使用自动测试检查 Xacro、launch 文件和 Gazebo 运动链路
 - 使用 `rosdep` 管理 ROS 依赖
 - 使用 `colcon` 构建工作空间
@@ -36,8 +37,9 @@
 ```text
 my_underscore_bot/
 ├── config/
-│   ├── my_controllers.yaml     # ros2_control 控制器配置
-│   └── view_bot_rviz.rviz      # RViz 配置
+│   ├── mapper_params_online_async.yaml  # SLAM Toolbox 建图参数
+│   ├── my_controllers.yaml              # ros2_control 控制器配置
+│   └── view_bot_rviz.rviz               # RViz 建图配置
 ├── description/
 │   ├── robot.urdf.xacro        # 机器人模型入口
 │   ├── robot_core.xacro        # 坐标基准、底盘、车轮和万向轮
@@ -46,14 +48,19 @@ my_underscore_bot/
 │   └── gazebo_control.xacro    # Gazebo ros2_control 配置
 ├── launch/
 │   ├── launch_sim.launch.py    # Gazebo 完整仿真入口
-│   └── rsp.launch.py           # robot_state_publisher 启动文件
+│   ├── rsp.launch.py           # robot_state_publisher 启动文件
+│   └── slam.launch.py          # Gazebo、SLAM Toolbox 和可选 RViz
+├── maps/
+│   ├── my_map.pgm              # 保存的栅格地图
+│   └── my_map.yaml             # 地图元数据
 ├── scripts/
 │   └── cmd_vel_relay.py        # Twist 到 TwistStamped 的速度桥接
 ├── test/
 │   ├── test_xacro.py            # 机器人描述结构测试
 │   ├── test_launch.py           # 仿真启动描述静态测试
 │   ├── test_motion.py           # Gazebo 运动集成测试
-│   └── test_lidar.py            # Gazebo 雷达数据集成测试
+│   ├── test_lidar.py            # Gazebo 雷达数据集成测试
+│   └── test_slam.py             # SLAM 栅格地图集成测试
 ├── worlds/
 │   └── my_world.sdf            # 当前 Gazebo 场景
 ├── CONTRIBUTING.md
@@ -75,10 +82,11 @@ rosdep update
 rosdep install --from-paths src --ignore-src -r -y
 ```
 
-键盘控制工具可以单独安装：
+键盘控制和 SLAM 工具可以单独安装：
 
 ```bash
 sudo apt install ros-humble-teleop-twist-keyboard
+sudo apt install ros-humble-slam-toolbox
 ```
 
 ## 构建项目
@@ -122,7 +130,7 @@ source install/setup.bash
 
 RUN_GAZEBO_TESTS=1 colcon test \
   --packages-select my_underscore_bot \
-  --ctest-args -R '^test_(motion|lidar)$' --output-on-failure
+  --ctest-args -R '^test_(motion|lidar|slam)$' --output-on-failure
 colcon test-result --verbose
 ```
 
@@ -130,6 +138,7 @@ colcon test-result --verbose
 `/diff_cont/odom` 中的 X 位置是否增加；旋转测试检查原地转向、平移漂移，
 并对比轮式里程计与 Gazebo 模型真值。测试结束后会自动关闭它启动的进程。
 雷达测试检查 `/scan` 的 frame、360 个采样点、扫描角度、量程和有效距离。
+SLAM 测试检查 `/map` 的 frame、分辨率、地图尺寸和有效栅格数据。
 
 ## 物理模型基线
 
@@ -217,6 +226,40 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 `cmd_vel_relay.py` 会使用控制器里程计的仿真时间戳，将它转换为
 `geometry_msgs/msg/TwistStamped`，再发布到 `/diff_cont/cmd_vel`。
 
+## 在线 SLAM 建图
+
+启动 Gazebo、雷达桥接、SLAM Toolbox 和 RViz：
+
+```bash
+cd ~/dev_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 launch my_underscore_bot slam.launch.py rviz:=true
+```
+
+`rviz` 默认为 `false`，适合自动测试或不需要图形界面时使用。建图界面以
+`map` 为固定坐标系，并显示 `/map`、`/scan`、RobotModel 和 TF。
+
+在另一个终端运行键盘控制，让机器人缓慢遍历场景：
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/dev_ws/install/setup.bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+建图完成后，将地图保存到项目的 `maps/` 目录：
+
+```bash
+ros2 service call /slam_toolbox/save_map \
+  slam_toolbox/srv/SaveMap \
+  "{name: {data: '/home/long/dev_ws/src/my_underscore_bot/maps/my_map'}}"
+```
+
+返回 `result=0` 表示保存成功，并生成 `my_map.pgm` 和 `my_map.yaml`。
+当前示例地图分辨率为 `0.05 m/格`，图像尺寸为 294 × 264。
+
 ## 主要话题
 
 | 话题 | 类型 | 用途 |
@@ -226,6 +269,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 | `/diff_cont/cmd_vel_out` | `geometry_msgs/msg/TwistStamped` | 控制器实际采用的速度命令 |
 | `/diff_cont/odom` | `nav_msgs/msg/Odometry` | 机器人里程计 |
 | `/scan` | `sensor_msgs/msg/LaserScan` | 二维激光雷达扫描数据 |
+| `/map` | `nav_msgs/msg/OccupancyGrid` | SLAM 生成的二维栅格地图 |
 | `/joint_states` | `sensor_msgs/msg/JointState` | 车轮关节状态 |
 | `/tf` | `tf2_msgs/msg/TFMessage` | 动态坐标变换 |
 | `/tf_static` | `tf2_msgs/msg/TFMessage` | 静态坐标变换 |
@@ -233,15 +277,16 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 当前主要 TF 关系为：
 
 ```text
-odom
-└── base_footprint
-    └── base_link
-        ├── chassis
-        ├── front_caster
-        ├── laser_frame
-        │   └── robot/base_footprint/lidar
-        ├── left_wheel
-        └── right_wheel
+map
+└── odom
+    └── base_footprint
+        └── base_link
+            ├── chassis
+            ├── front_caster
+            ├── laser_frame
+            │   └── robot/base_footprint/lidar
+            ├── left_wheel
+            └── right_wheel
 ```
 
 ## 常用检查命令
@@ -328,7 +373,7 @@ Gazebo 无法识别该参数。
 2. 增加 Xacro、启动和运动测试（已完成）
 3. 校准质量、惯性和摩擦参数（已完成）
 4. 添加激光雷达（已完成）
-5. 接入 SLAM
+5. 接入 SLAM（已完成）
 6. 接入 Nav2
 7. 添加 IMU 和相机
 8. 连接真实机器人硬件

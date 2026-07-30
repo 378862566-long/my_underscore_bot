@@ -12,20 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 import os
 from pathlib import Path
 import signal
 import subprocess
 import time
 
+from nav_msgs.msg import OccupancyGrid
 import pytest
 import rclpy
-from sensor_msgs.msg import LaserScan
 
 
 RUN_GAZEBO_TESTS = os.environ.get('RUN_GAZEBO_TESTS') == '1'
-GAZEBO_LOG = Path('/tmp/my_underscore_bot_lidar_test.log')
+SLAM_LOG = Path('/tmp/my_underscore_bot_slam_test.log')
 
 
 def stop_process_group(process):
@@ -53,19 +52,19 @@ def stop_process_group(process):
 
 
 @pytest.fixture
-def gazebo_simulation():
-    """Start the project simulation and stop it after the test."""
+def slam_simulation():
+    """Start online SLAM and stop every launched process after the test."""
     environment = os.environ.copy()
     if 'DISPLAY' not in environment and Path('/tmp/.X11-unix/X1').exists():
         environment['DISPLAY'] = ':1'
 
-    with GAZEBO_LOG.open('w') as log_file:
+    with SLAM_LOG.open('w') as log_file:
         process = subprocess.Popen(
             [
                 'ros2',
                 'launch',
                 'my_underscore_bot',
-                'launch_sim.launch.py',
+                'slam.launch.py',
             ],
             env=environment,
             stdout=log_file,
@@ -81,52 +80,49 @@ def gazebo_simulation():
 
 @pytest.mark.skipif(
     not RUN_GAZEBO_TESTS,
-    reason='Set RUN_GAZEBO_TESTS=1 to run the Gazebo lidar test.',
+    reason='Set RUN_GAZEBO_TESTS=1 to run the Gazebo SLAM test.',
 )
-def test_lidar_publishes_valid_scan(gazebo_simulation):
-    """Verify the bridged lidar topic and its scan configuration."""
+def test_slam_publishes_occupancy_grid(slam_simulation):
+    """Verify that SLAM consumes scans and publishes a valid map."""
     rclpy.init()
-    node = rclpy.create_node('lidar_test')
-    scans = []
+    node = rclpy.create_node('slam_test')
+    maps = []
 
-    def record_scan(message):
-        scans.append(message)
+    def record_map(message):
+        maps.append(message)
 
     subscription = node.create_subscription(
-        LaserScan,
-        '/scan',
-        record_scan,
+        OccupancyGrid,
+        '/map',
+        record_map,
         10,
     )
 
     try:
-        scan_deadline = time.monotonic() + 30.0
-        while not scans and time.monotonic() < scan_deadline:
-            if gazebo_simulation.poll() is not None:
+        map_deadline = time.monotonic() + 30.0
+        while not maps and time.monotonic() < map_deadline:
+            if slam_simulation.poll() is not None:
                 pytest.fail(
-                    f'Gazebo exited early. See log: {GAZEBO_LOG}'
+                    f'SLAM exited early. See log: {SLAM_LOG}'
                 )
             rclpy.spin_once(node, timeout_sec=0.1)
 
-        assert scans, f'No /scan message received. See log: {GAZEBO_LOG}'
-        scan = scans[-1]
-        finite_ranges = [
-            range_value
-            for range_value in scan.ranges
-            if math.isfinite(range_value)
+        assert maps, f'No /map message received. See log: {SLAM_LOG}'
+        occupancy_grid = maps[-1]
+        known_cells = [
+            cell
+            for cell in occupancy_grid.data
+            if cell >= 0
         ]
 
-        assert scan.header.frame_id == 'robot/base_footprint/lidar'
-        assert len(scan.ranges) == 360
-        assert scan.angle_min == pytest.approx(-math.pi, rel=1e-5)
-        assert scan.angle_max == pytest.approx(math.pi, rel=1e-5)
-        assert scan.range_min == pytest.approx(0.12, rel=1e-5)
-        assert scan.range_max == pytest.approx(8.0)
-        assert finite_ranges
-        assert all(
-            scan.range_min <= range_value <= scan.range_max
-            for range_value in finite_ranges
+        assert occupancy_grid.header.frame_id == 'map'
+        assert occupancy_grid.info.resolution == pytest.approx(0.05)
+        assert occupancy_grid.info.width > 0
+        assert occupancy_grid.info.height > 0
+        assert len(occupancy_grid.data) == (
+            occupancy_grid.info.width * occupancy_grid.info.height
         )
+        assert known_cells
     finally:
         node.destroy_subscription(subscription)
         node.destroy_node()
