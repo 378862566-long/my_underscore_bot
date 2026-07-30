@@ -16,6 +16,7 @@
 - 将键盘发布的 `/cmd_vel` 转换为控制器需要的带时间戳速度命令
 - 发布 `/joint_states`、`/tf`、`/tf_static` 和里程计
 - 使用 360° 二维激光雷达发布 `/scan`
+- 使用仿真 IMU 以 50 Hz 发布 `/imu`
 - 使用 SLAM Toolbox 在线生成并保存二维栅格地图
 - 使用 AMCL 在已保存地图中定位
 - 使用 Nav2 规划路径、避障并控制机器人到达目标
@@ -48,6 +49,7 @@ my_underscore_bot/
 │   ├── robot.urdf.xacro        # 机器人模型入口
 │   ├── robot_core.xacro        # 坐标基准、底盘、车轮和万向轮
 │   ├── inertial_macros.xacro   # 常用形状的惯性计算宏
+│   ├── imu.xacro               # IMU 模型与 Gazebo 传感器
 │   ├── lidar.xacro             # 二维激光雷达模型与 Gazebo 传感器
 │   └── gazebo_control.xacro    # Gazebo ros2_control 配置
 ├── launch/
@@ -65,6 +67,7 @@ my_underscore_bot/
 │   ├── test_launch.py           # 仿真启动描述静态测试
 │   ├── test_motion.py           # Gazebo 运动集成测试
 │   ├── test_lidar.py            # Gazebo 雷达数据集成测试
+│   ├── test_imu.py              # IMU 静止与旋转数据集成测试
 │   ├── test_slam.py             # SLAM 栅格地图集成测试
 │   └── test_nav2.py             # Nav2 启动、地图和参数测试
 ├── worlds/
@@ -152,7 +155,7 @@ footprint 是否相互匹配。
 ## 物理模型基线
 
 基础机器人按总质量 `0.8 kg` 的教学模型进行校准。安装 `0.05 kg`
-激光雷达后，当前整机总质量为 `0.85 kg`：
+激光雷达和 `0.02 kg` IMU 后，当前整机总质量为 `0.87 kg`：
 
 | 部件 | 质量 (kg) | `ixx` | `iyy` | `izz` |
 | --- | ---: | ---: | ---: | ---: |
@@ -161,6 +164,7 @@ footprint 是否相互匹配。
 | right_wheel | 0.1 | 0.0000758333 | 0.0000758333 | 0.000125 |
 | front_caster | 0.1 | 0.0001 | 0.0001 | 0.0001 |
 | laser_frame | 0.05 | 0.00002375 | 0.00002375 | 0.00004 |
+| imu_link | 0.02 | 0.0000016667 | 0.0000028333 | 0.0000041667 |
 
 惯性由 `inertial_macros.xacro` 根据长方体、圆柱和球体公式计算。
 自动测试会检查各部件质量、总质量、惯性计算结果及惯性矩阵的基本物理有效性。
@@ -174,8 +178,8 @@ footprint 是否相互匹配。
 | 前万向轮 | 0.001 | 0.001 | 减少固定球形支点对转向的阻碍 |
 
 Gazebo 会将通过固定关节连接的底盘和万向轮合并进基础 link，因此转换后的
-SDF 中基础 link 的质量是 `0.65 kg`；加上两个 `0.1 kg` 的驱动轮，总质量为
-`0.85 kg`。
+SDF 中固定连接部件会合并进基础 link；加上两个 `0.1 kg` 的驱动轮，
+当前总质量为 `0.87 kg`。
 
 ## 启动 Gazebo 仿真
 
@@ -318,6 +322,7 @@ Toolbox 发布 `map → odom`；保存地图导航时由 AMCL 根据 `/scan` 和
 | `/diff_cont/cmd_vel_out` | `geometry_msgs/msg/TwistStamped` | 控制器实际采用的速度命令 |
 | `/diff_cont/odom` | `nav_msgs/msg/Odometry` | 机器人里程计 |
 | `/scan` | `sensor_msgs/msg/LaserScan` | 二维激光雷达扫描数据 |
+| `/imu` | `sensor_msgs/msg/Imu` | 姿态、角速度和线加速度 |
 | `/map` | `nav_msgs/msg/OccupancyGrid` | SLAM 生成的二维栅格地图 |
 | `/initialpose` | `geometry_msgs/msg/PoseWithCovarianceStamped` | AMCL 初始位置 |
 | `/goal_pose` | `geometry_msgs/msg/PoseStamped` | RViz 设置的导航目标 |
@@ -334,6 +339,7 @@ map
         └── base_link
             ├── chassis
             ├── front_caster
+            ├── imu_link
             ├── laser_frame
             │   └── robot/base_footprint/lidar
             ├── left_wheel
@@ -426,8 +432,9 @@ Gazebo 无法识别该参数。
 4. 添加激光雷达（已完成）
 5. 接入 SLAM（已完成）
 6. 接入 Nav2（已完成）
-7. 添加 IMU 和相机
-8. 连接真实机器人硬件
+7. 添加 IMU（已完成）
+8. 添加相机
+9. 连接真实机器人硬件
 
 ## License
 

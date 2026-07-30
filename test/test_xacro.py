@@ -62,6 +62,7 @@ def test_required_links_exist():
         'right_wheel',
         'front_caster',
         'laser_frame',
+        'imu_link',
     }
 
     assert expected_links.issubset(link_names)
@@ -78,6 +79,7 @@ def test_required_joints_exist():
         'right_wheel_joint',
         'front_caster_joint',
         'laser_joint',
+        'imu_joint',
     }
 
     assert expected_joints.issubset(joint_names)
@@ -98,6 +100,7 @@ def test_teaching_model_mass_distribution():
         'right_wheel': 0.1,
         'front_caster': 0.1,
         'laser_frame': 0.05,
+        'imu_link': 0.02,
     }
 
     actual_masses = {
@@ -117,7 +120,7 @@ def test_teaching_model_mass_distribution():
     )
 
     assert base_mass == pytest.approx(0.8)
-    assert sum(actual_masses.values()) == pytest.approx(0.85)
+    assert sum(actual_masses.values()) == pytest.approx(0.87)
 
 
 def test_teaching_model_inertia_values():
@@ -137,6 +140,11 @@ def test_teaching_model_inertia_values():
         ),
         'front_caster': (0.0001, 0.0001, 0.0001),
         'laser_frame': (0.00002375, 0.00002375, 0.00004),
+        'imu_link': (
+            0.0000016666666666666667,
+            0.0000028333333333333335,
+            0.000004166666666666667,
+        ),
     }
 
     for link_name, expected_diagonal in expected_inertias.items():
@@ -153,6 +161,7 @@ def test_inertia_values_are_physically_valid():
         'right_wheel',
         'front_caster',
         'laser_frame',
+        'imu_link',
     )
 
     for link_name in physical_links:
@@ -191,3 +200,16 @@ def test_lidar_sensor_configuration():
     )
     assert float(scan_range.findtext('min')) == pytest.approx(0.12)
     assert float(scan_range.findtext('max')) == pytest.approx(8.0)
+
+
+def test_imu_sensor_configuration():
+    """Verify the simulated IMU topic and update rate."""
+    robot = expand_robot_xacro()
+    imu_sensor = robot.find(
+        "./gazebo[@reference='imu_link']/sensor[@name='imu_sensor']"
+    )
+
+    assert imu_sensor is not None
+    assert imu_sensor.attrib['type'] == 'imu'
+    assert imu_sensor.findtext('topic') == 'imu'
+    assert float(imu_sensor.findtext('update_rate')) == pytest.approx(50.0)
