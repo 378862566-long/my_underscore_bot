@@ -41,6 +41,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_motion test/test_motion.py TIMEOUT 60)
   ament_add_pytest_test(test_lidar test/test_lidar.py TIMEOUT 60)
   ament_add_pytest_test(test_slam test/test_slam.py TIMEOUT 60)
+  ament_add_pytest_test(test_nav2 test/test_nav2.py TIMEOUT 60)
 endif()
 
 install(

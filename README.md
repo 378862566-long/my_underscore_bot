@@ -4,7 +4,8 @@
 
 项目基于 ROS 2 Humble 和 Gazebo Fortress，使用 Xacro 描述机器人模型，
 通过 `gz_ros2_control` 和 `diff_drive_controller` 控制左右轮。目前支持
-自定义 Gazebo 场景、键盘速度控制、关节状态发布、TF 发布和里程计输出。
+自定义 Gazebo 场景、键盘速度控制、二维激光雷达、SLAM 建图，以及基于
+保存地图的 Nav2 自主导航。
 
 ## 当前功能
 
@@ -16,6 +17,8 @@
 - 发布 `/joint_states`、`/tf`、`/tf_static` 和里程计
 - 使用 360° 二维激光雷达发布 `/scan`
 - 使用 SLAM Toolbox 在线生成并保存二维栅格地图
+- 使用 AMCL 在已保存地图中定位
+- 使用 Nav2 规划路径、避障并控制机器人到达目标
 - 使用自动测试检查 Xacro、launch 文件和 Gazebo 运动链路
 - 使用 `rosdep` 管理 ROS 依赖
 - 使用 `colcon` 构建工作空间
@@ -39,7 +42,8 @@ my_underscore_bot/
 ├── config/
 │   ├── mapper_params_online_async.yaml  # SLAM Toolbox 建图参数
 │   ├── my_controllers.yaml              # ros2_control 控制器配置
-│   └── view_bot_rviz.rviz               # RViz 建图配置
+│   ├── nav2_params.yaml                 # AMCL、规划器和代价地图参数
+│   └── view_bot_rviz.rviz               # RViz 建图与导航视图
 ├── description/
 │   ├── robot.urdf.xacro        # 机器人模型入口
 │   ├── robot_core.xacro        # 坐标基准、底盘、车轮和万向轮
@@ -48,6 +52,7 @@ my_underscore_bot/
 │   └── gazebo_control.xacro    # Gazebo ros2_control 配置
 ├── launch/
 │   ├── launch_sim.launch.py    # Gazebo 完整仿真入口
+│   ├── navigation.launch.py    # 保存地图定位与 Nav2 导航
 │   ├── rsp.launch.py           # robot_state_publisher 启动文件
 │   └── slam.launch.py          # Gazebo、SLAM Toolbox 和可选 RViz
 ├── maps/
@@ -60,7 +65,8 @@ my_underscore_bot/
 │   ├── test_launch.py           # 仿真启动描述静态测试
 │   ├── test_motion.py           # Gazebo 运动集成测试
 │   ├── test_lidar.py            # Gazebo 雷达数据集成测试
-│   └── test_slam.py             # SLAM 栅格地图集成测试
+│   ├── test_slam.py             # SLAM 栅格地图集成测试
+│   └── test_nav2.py             # Nav2 启动、地图和参数测试
 ├── worlds/
 │   └── my_world.sdf            # 当前 Gazebo 场景
 ├── CONTRIBUTING.md
@@ -82,11 +88,12 @@ rosdep update
 rosdep install --from-paths src --ignore-src -r -y
 ```
 
-键盘控制和 SLAM 工具可以单独安装：
+键盘控制、SLAM 和 Nav2 可以单独安装：
 
 ```bash
 sudo apt install ros-humble-teleop-twist-keyboard
 sudo apt install ros-humble-slam-toolbox
+sudo apt install ros-humble-navigation2 ros-humble-nav2-bringup
 ```
 
 ## 构建项目
@@ -139,6 +146,8 @@ colcon test-result --verbose
 并对比轮式里程计与 Gazebo 模型真值。测试结束后会自动关闭它启动的进程。
 雷达测试检查 `/scan` 的 frame、360 个采样点、扫描角度、量程和有效距离。
 SLAM 测试检查 `/map` 的 frame、分辨率、地图尺寸和有效栅格数据。
+Nav2 测试检查保存地图、启动参数、TF、里程计、雷达范围和机器人
+footprint 是否相互匹配。
 
 ## 物理模型基线
 
@@ -260,6 +269,46 @@ ros2 service call /slam_toolbox/save_map \
 返回 `result=0` 表示保存成功，并生成 `my_map.pgm` 和 `my_map.yaml`。
 当前示例地图分辨率为 `0.05 m/格`，图像尺寸为 294 × 264。
 
+## Nav2 保存地图导航
+
+Nav2 导航模式会启动 Gazebo、地图服务器、AMCL、路径规划器、控制器和
+RViz，但不会启动 SLAM Toolbox：
+
+```bash
+cd ~/dev_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 launch my_underscore_bot navigation.launch.py
+```
+
+RViz 打开后：
+
+1. 点击 `2D Pose Estimate`
+2. 在地图中机器人实际出生位置单击并拖动，设置初始朝向
+3. 等待地图、机器人模型和雷达数据正确重合
+4. 点击 `2D Goal Pose`
+5. 在可通行区域单击并拖动，设置目标位置和朝向
+
+默认世界和机器人出生位姿与建图时保持一致，因此当前示例应在地图坐标
+`(0, 0)` 设置初始位置，朝向为 `0 rad`。如果通过 `x`、`y` 或 `yaw`
+改变了出生位姿，RViz 中设置的初始位置也必须对应修改。
+
+导航模式的常用参数包括：
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `map` | `maps/my_map.yaml` | 保存地图的 YAML 文件 |
+| `params_file` | `config/nav2_params.yaml` | Nav2 参数文件 |
+| `rviz` | `true` | 是否启动 RViz |
+| `autostart` | `true` | 是否自动激活 Nav2 生命周期节点 |
+| `world` | `my_world.sdf` | Gazebo 世界文件 |
+| `x`、`y`、`z`、`yaw` | `0.0` | 机器人出生位姿 |
+
+建图模式和保存地图导航模式用途不同，不应同时启动。建图时由 SLAM
+Toolbox 发布 `map → odom`；保存地图导航时由 AMCL 根据 `/scan` 和
+初始位姿发布该变换。
+
 ## 主要话题
 
 | 话题 | 类型 | 用途 |
@@ -270,6 +319,8 @@ ros2 service call /slam_toolbox/save_map \
 | `/diff_cont/odom` | `nav_msgs/msg/Odometry` | 机器人里程计 |
 | `/scan` | `sensor_msgs/msg/LaserScan` | 二维激光雷达扫描数据 |
 | `/map` | `nav_msgs/msg/OccupancyGrid` | SLAM 生成的二维栅格地图 |
+| `/initialpose` | `geometry_msgs/msg/PoseWithCovarianceStamped` | AMCL 初始位置 |
+| `/goal_pose` | `geometry_msgs/msg/PoseStamped` | RViz 设置的导航目标 |
 | `/joint_states` | `sensor_msgs/msg/JointState` | 车轮关节状态 |
 | `/tf` | `tf2_msgs/msg/TFMessage` | 动态坐标变换 |
 | `/tf_static` | `tf2_msgs/msg/TFMessage` | 静态坐标变换 |
@@ -374,7 +425,7 @@ Gazebo 无法识别该参数。
 3. 校准质量、惯性和摩擦参数（已完成）
 4. 添加激光雷达（已完成）
 5. 接入 SLAM（已完成）
-6. 接入 Nav2
+6. 接入 Nav2（已完成）
 7. 添加 IMU 和相机
 8. 连接真实机器人硬件
 
