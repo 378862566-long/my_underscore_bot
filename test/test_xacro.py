@@ -63,6 +63,7 @@ def test_required_links_exist():
         'front_caster',
         'laser_frame',
         'imu_link',
+        'camera_link',
     }
 
     assert expected_links.issubset(link_names)
@@ -80,6 +81,7 @@ def test_required_joints_exist():
         'front_caster_joint',
         'laser_joint',
         'imu_joint',
+        'camera_joint',
     }
 
     assert expected_joints.issubset(joint_names)
@@ -101,6 +103,7 @@ def test_teaching_model_mass_distribution():
         'front_caster': 0.1,
         'laser_frame': 0.05,
         'imu_link': 0.02,
+        'camera_link': 0.03,
     }
 
     actual_masses = {
@@ -120,7 +123,7 @@ def test_teaching_model_mass_distribution():
     )
 
     assert base_mass == pytest.approx(0.8)
-    assert sum(actual_masses.values()) == pytest.approx(0.87)
+    assert sum(actual_masses.values()) == pytest.approx(0.90)
 
 
 def test_teaching_model_inertia_values():
@@ -145,6 +148,7 @@ def test_teaching_model_inertia_values():
             0.0000028333333333333335,
             0.000004166666666666667,
         ),
+        'camera_link': (0.00000625, 0.0000085, 0.00001025),
     }
 
     for link_name, expected_diagonal in expected_inertias.items():
@@ -162,6 +166,7 @@ def test_inertia_values_are_physically_valid():
         'front_caster',
         'laser_frame',
         'imu_link',
+        'camera_link',
     )
 
     for link_name in physical_links:
@@ -213,3 +218,24 @@ def test_imu_sensor_configuration():
     assert imu_sensor.attrib['type'] == 'imu'
     assert imu_sensor.findtext('topic') == 'imu'
     assert float(imu_sensor.findtext('update_rate')) == pytest.approx(50.0)
+
+
+def test_camera_sensor_configuration():
+    """Verify the simulated RGB camera settings."""
+    robot = expand_robot_xacro()
+    camera_sensor = robot.find(
+        "./gazebo[@reference='camera_link']"
+        "/sensor[@name='camera_sensor']"
+    )
+
+    assert camera_sensor is not None
+    assert camera_sensor.attrib['type'] == 'camera'
+    assert camera_sensor.findtext('topic') == 'camera/image_raw'
+    assert float(camera_sensor.findtext('update_rate')) == pytest.approx(15.0)
+
+    camera = camera_sensor.find('camera')
+    assert int(camera.findtext('image/width')) == 320
+    assert int(camera.findtext('image/height')) == 240
+    assert camera.findtext('image/format') == 'R8G8B8'
+    assert float(camera.findtext('clip/near')) == pytest.approx(0.1)
+    assert float(camera.findtext('clip/far')) == pytest.approx(20.0)

@@ -138,6 +138,17 @@ def generate_launch_description():
         output='screen',
     )
 
+    # Bridge the Gazebo RGB camera into a ROS sensor_msgs/Image topic.
+    camera_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=[
+            '/camera/image_raw@sensor_msgs/msg/Image'
+            '[ignition.msgs.Image',
+        ],
+        output='screen',
+    )
+
     # Fortress reports the scoped Gazebo sensor frame in LaserScan messages.
     # The sensor is colocated with laser_frame, so connect them with identity TF.
     lidar_frame_alias = Node(
@@ -157,6 +168,17 @@ def generate_launch_description():
         arguments=[
             '--frame-id', 'imu_link',
             '--child-frame-id', 'robot/base_footprint/imu_sensor',
+        ],
+        output='screen',
+    )
+
+    # Connect the scoped Gazebo camera sensor frame to the robot TF tree.
+    camera_frame_alias = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=[
+            '--frame-id', 'camera_link',
+            '--child-frame-id', 'robot/base_footprint/camera_sensor',
         ],
         output='screen',
     )
@@ -205,4 +227,6 @@ def generate_launch_description():
         lidar_frame_alias,              # 7. 连接 Gazebo 雷达 frame 与 TF
         imu_bridge,                     # 8. Gazebo IMU 数据桥接到 /imu
         imu_frame_alias,                # 9. 连接 Gazebo IMU frame 与 TF
+        camera_bridge,                  # 10. Gazebo 相机桥接到 ROS 图像话题
+        camera_frame_alias,             # 11. 连接 Gazebo 相机 frame 与 TF
     ])
